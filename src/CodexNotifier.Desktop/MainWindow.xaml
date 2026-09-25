@@ -1,0 +1,26 @@
+<Window x:Class="CodexNotifier.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Codex Notifier" Icon="Assets/app.ico" Width="860" Height="820" MinWidth="730" MinHeight="600" WindowStartupLocation="CenterScreen">
+ <ScrollViewer VerticalScrollBarVisibility="Auto" Background="#FAF8F1"><StackPanel Margin="30,24,30,24">
+  <Grid Margin="0,0,0,20"><StackPanel><TextBlock Text="CODEX / NOTIFIER" FontSize="12" Foreground="#171717"/><TextBlock Text="让专注有个回音。" FontSize="29" FontWeight="SemiBold" Margin="0,7,0,3"/><TextBlock Text="Windows · WSL  /  每一轮完成，都能及时知道。" Foreground="#171717"/></StackPanel><Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#E2EADD" CornerRadius="14" Padding="13,7"><TextBlock x:Name="StateLabel" Text="● 空闲" Foreground="#171717"/></Border></Grid>
+  <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="0,0,0,14"><StackPanel>
+   <TextBlock Text="通知与悬浮球" FontSize="17" FontWeight="SemiBold"/>
+   <WrapPanel Margin="0,6,0,8"><CheckBox x:Name="EnabledToggle" Content="启用通知" Click="SettingsChanged"/><CheckBox x:Name="AudioToggle" Content="播放声音" Click="SettingsChanged"/><CheckBox x:Name="OrbToggle" Content="显示悬浮球" Click="SettingsChanged"/><CheckBox x:Name="GlowToggle" Content="完成光圈" Click="SettingsChanged"/><CheckBox x:Name="FlashToggle" Content="柔和屏幕提示" Click="SettingsChanged"/></WrapPanel>
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="AudioPathBox" IsReadOnly="True" Margin="0,0,10,8" ToolTip="默认使用程序 Audio 文件夹中的 over.wav；外部音频会复制到此文件夹"/><Button Grid.Column="1" Content="选择音频" Click="ChooseAudio"/><Button Grid.Column="2" Content="试听" Click="PreviewAudio"/></Grid>
+   <Grid Margin="0,4,0,9"><Grid.ColumnDefinitions><ColumnDefinition Width="55"/><ColumnDefinition/><ColumnDefinition Width="65"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions><TextBlock Text="音量" VerticalAlignment="Center"/><Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="1" ValueChanged="SliderChanged" Margin="0,0,24,0"/><TextBlock Grid.Column="2" Text="球体大小" VerticalAlignment="Center"/><Slider x:Name="SizeSlider" Grid.Column="3" Minimum="48" Maximum="120" ValueChanged="SliderChanged"/></Grid>
+   <WrapPanel><Button Content="演示一轮通知" Click="Demo"/><Button Content="恢复默认音频" Click="ResetAudio"/><Button Content="重置悬浮球位置" Click="ResetPosition"/></WrapPanel>
+   <TextBlock Text="按住拖动 · 双击暂停全部通知 · 右键打开面板。隐藏悬浮球不影响声音。" Foreground="#171717" TextWrapping="Wrap"/>
+  </StackPanel></Border>
+  <Border Background="{StaticResource Panel}" CornerRadius="12" Padding="20" Margin="0,0,0,14"><StackPanel>
+   <TextBlock Text="Codex 接入" FontSize="17" FontWeight="SemiBold"/>
+   <TextBlock Text="仅当前用户。监测所选目录；部署回调前会展示变更，移除时保留你的其他配置。" Foreground="#171717" Margin="0,7,0,12" TextWrapping="Wrap"/>
+   <ComboBox x:Name="SourcesBox" Height="34" SelectionChanged="SourceChanged" DisplayMemberPath="Display" Margin="0,0,0,10"/>
+   <Grid Margin="0,0,0,9"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions><TextBox x:Name="HomeBox" ToolTip="Windows 可访问路径，例如 C:\Users\你\.codex 或 \\wsl.localhost\Ubuntu\home\你\.codex"/><TextBox x:Name="DistroBox" Grid.Column="1" Margin="10,0,0,0" ToolTip="Windows 执行留空；WSL 执行填写发行版名，例如 Ubuntu24.04"/></Grid>
+   <TextBlock Text="左侧：配置目录；右侧：WSL 发行版（Windows 执行留空）。共享配置需选择实际执行环境。" Foreground="#171717" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,9"/>
+   <WrapPanel><Button Content="检测配置" Click="Detect"/><Button Content="添加 / 更新目录" Click="AddSource"/><Button Content="移出监测列表" Click="ForgetSource"/></WrapPanel>
+   <CheckBox x:Name="ForwardToggle" Content="部署后继续执行原通知回调（可能同时响两次）" IsChecked="True"/>
+   <WrapPanel><Button Content="部署接入…" Background="#DCE9D9" Click="Deploy"/><Button Content="清除接入配置…" Click="Remove"/><Button Content="测试桥接" Click="TestBridge"/></WrapPanel>
+   <TextBlock x:Name="SourceStatus" Foreground="#171717" TextWrapping="Wrap" Margin="0,3,0,0"/>
+  </StackPanel></Border>
+  <Border BorderBrush="#D8D4C9" BorderThickness="1" CornerRadius="10" Padding="16"><StackPanel><TextBlock Text="运行状态" FontWeight="SemiBold"/><TextBlock x:Name="StatusText" Text="正在初始化…" TextWrapping="Wrap" Foreground="#171717" Margin="0,6,0,0"/></StackPanel></Border>
+  <DockPanel Margin="0,17,0,0"><TextBlock Text="LOCAL FIRST  ·  v0.1.5" FontSize="11" Foreground="#171717" VerticalAlignment="Center"/><Button Content="退出程序" HorizontalAlignment="Right" Click="Exit" Margin="0"/></DockPanel>
+ </StackPanel></ScrollViewer>
+</Window>

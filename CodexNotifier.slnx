@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CodexNotifier.Core/CodexNotifier.Core.csproj" />
+    <Project Path="src/CodexNotifier.Desktop/CodexNotifier.Desktop.csproj" />
+    <Project Path="src/CodexNotifier.Relay/CodexNotifier.Relay.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CodexNotifier.Tests/CodexNotifier.Tests.csproj" />
+  </Folder>
+</Solution>

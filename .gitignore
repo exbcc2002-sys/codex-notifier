@@ -1,0 +1,27 @@
+**/bin/
+**/obj/
+artifacts/
+.vs/
+*.user
+**/__pycache__/
+
+# Local editor settings, credentials and generated runtime data
+.vscode/
+.idea/
+.env
+.env.*
+!.env.example
+.codex/
+*.log
+*.suo
+*.pfx
+*.p12
+*.pem
+*.key
+settings.json
+integration.json
+config.before-install.toml
+
+/Audio/*
+!/Audio/over.wav
+!/Audio/README.md
