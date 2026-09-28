@@ -134,13 +134,15 @@ sealed class GlowWindow : Window
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     readonly GlowDrawing drawing;
     readonly Stopwatch clock = Stopwatch.StartNew();
+    public bool IsScreenFlash { get; }
     public GlowWindow(OrbWindow orb, bool flash)
     {
+        IsScreenFlash = flash;
         WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent;
         ShowInTaskbar = false; ShowActivated = false; Topmost = true; IsHitTestVisible = false;
         if (flash)
         {
-            var area = Native.MonitorBounds(orb);
+            var area = Native.MonitorBounds(orb, workArea: false);
             Left = area.Left; Top = area.Top; Width = area.Width; Height = area.Height;
         }
         else { Width = Height = 460; Left = orb.Left + orb.Width / 2 - 230; Top = orb.Top + orb.Height / 2 - 230; }
@@ -149,13 +151,43 @@ sealed class GlowWindow : Window
         timer.Tick += (_, _) => { drawing.Progress = clock.Elapsed.TotalSeconds / .95; drawing.InvalidateVisual(); if (drawing.Progress >= 1) Close(); };
         Closed += (_, _) => timer.Stop(); Loaded += (_, _) => { clock.Restart(); timer.Start(); };
     }
+    internal static void CaptureEdgePreview(string path, double width, double height)
+    {
+        var preview = new GlowDrawing(true, new Point(width / 2, height / 2)) { Progress = .38 };
+        preview.Measure(new Size(width, height)); preview.Arrange(new Rect(0, 0, width, height));
+        Native.Capture(preview, path);
+    }
+    static void DrawScreenEdge(DrawingContext dc, double width, double height, double progress)
+    {
+        if (width <= 0 || height <= 0 || progress <= 0 || progress >= 1) return;
+        double shortSide = Math.Min(width, height);
+        double travel = shortSide * .14;
+        double waveCenter = travel * (1 - Math.Pow(1 - progress, 2));
+        double softness = shortSide * .025;
+        double envelope = Math.Sin(Math.PI * progress) * (1 - progress);
+        // Nested rectangular strokes form one soft wave from all four screen edges.
+        // Dimensions scale with the monitor; no filled rectangle ever tints the center.
+        double step = Math.Max(1, shortSide / 360);
+        for (double inset = step / 2; inset < travel + softness * 3; inset += step)
+        {
+            double distance = (inset - waveCenter) / softness;
+            byte alpha = (byte)(135 * envelope * Math.Exp(-.5 * distance * distance));
+            if (alpha == 0) continue;
+            var brush = new SolidColorBrush(Color.FromArgb(alpha, 75, 232, 132));
+            dc.DrawRectangle(null, new Pen(brush, step), new Rect(inset, inset, width - inset * 2, height - inset * 2));
+        }
+    }
     sealed class GlowDrawing(bool flash, Point center) : FrameworkElement
     {
         public double Progress;
         protected override void OnRender(DrawingContext dc)
         {
             double p = Math.Clamp(Progress, 0, 1), alpha = Math.Sin(p * Math.PI) * (1 - p);
-            if (flash) dc.DrawRectangle(new SolidColorBrush(Color.FromArgb((byte)(alpha * 20), 88, 235, 145)), null, new Rect(0, 0, ActualWidth, ActualHeight));
+            if (flash)
+            {
+                DrawScreenEdge(dc, ActualWidth, ActualHeight, p);
+                return; // Screen edges never draw the orb's completion ring.
+            }
             double r = 34 + p * 175;
             for (int i = 0; i < 5; i++) dc.DrawEllipse(null, new Pen(new SolidColorBrush(Color.FromArgb((byte)(alpha * (65 - i * 11)), 100, 251, 162)), 3 + i * 3), center, r, r);
         }
@@ -175,13 +207,14 @@ static class Native
         var h = new WindowInteropHelper(window).Handle;
         SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x08000000 | 0x80 | (clickThrough ? 0x20 : 0));
     }
-    public static Rect MonitorBounds(Window w)
+    public static Rect MonitorBounds(Window w, bool workArea = true)
     {
         var h = new WindowInteropHelper(w).Handle;
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
         if (!GetMonitorInfo(MonitorFromWindow(h, 2), ref info)) return SystemParameters.WorkArea;
         var transform = PresentationSource.FromVisual(w)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
-        return new Rect(transform.Transform(new Point(info.Work.Left, info.Work.Top)), transform.Transform(new Point(info.Work.Right, info.Work.Bottom)));
+        var bounds = workArea ? info.Work : info.Monitor;
+        return new Rect(transform.Transform(new Point(bounds.Left, bounds.Top)), transform.Transform(new Point(bounds.Right, bounds.Bottom)));
     }
     public static void ClampToMonitor(Window w)
     {

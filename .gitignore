@@ -24,4 +24,5 @@ config.before-install.toml
 
 /Audio/*
 !/Audio/over.wav
+!/Audio/over_2x.wav
 !/Audio/README.md

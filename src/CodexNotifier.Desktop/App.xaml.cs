@@ -99,7 +99,8 @@ public partial class App : Application
     {
         if (!Settings.Enabled) { audioRequested = false; audioRequested = false; player.Close(); foreach (var g in glows.ToArray()) g.Close(); }
         if (!Settings.AudioEnabled) { audioRequested = false; player.Close(); }
-        if (!Settings.GlowEnabled && !Settings.ScreenFlash) foreach (var g in glows.ToArray()) g.Close();
+        foreach (var g in glows.ToArray())
+            if (g.IsScreenFlash ? !Settings.ScreenFlash : !Settings.GlowEnabled || !Settings.OrbVisible) g.Close();
         Orb?.Apply(); Panel?.Refresh(); SaveSettings();
         string nextMenu = $"{Settings.Enabled}:{Settings.AudioEnabled}:{Settings.OrbVisible}";
         if (!IsSmoke && nextMenu != menuState) { menuState = nextMenu; UpdateMenus(); }
@@ -145,13 +146,15 @@ public partial class App : Application
     {
         if (!Settings.Enabled) return;
         if (Settings.OrbVisible) Orb.Complete();
-        if (Settings.GlowEnabled && Settings.OrbVisible || Settings.ScreenFlash)
-        {
-            if (glows.Count >= 4) glows[0].Close();
-            var glow = new GlowWindow(Orb, Settings.ScreenFlash); glows.Add(glow);
-            glow.Closed += (_, _) => glows.Remove(glow); glow.Show();
-        }
+        if (Settings.GlowEnabled && Settings.OrbVisible) ShowCompletionEffect(false);
+        if (Settings.ScreenFlash) ShowCompletionEffect(true);
         if (Settings.AudioEnabled && DateTime.UtcNow - lastSound > TimeSpan.FromMilliseconds(700)) { lastSound = DateTime.UtcNow; PlayAudio(); }
+    }
+    void ShowCompletionEffect(bool screenFlash)
+    {
+        if (glows.Count >= 4) glows[0].Close();
+        var glow = new GlowWindow(Orb, screenFlash); glows.Add(glow);
+        glow.Closed += (_, _) => glows.Remove(glow); glow.Show();
     }
     public async Task Demonstrate()
     {
@@ -268,12 +271,55 @@ public partial class App : Application
         Panel.Close();
         if (failure != null) throw failure;
     }
+    void SmokeCompletionEffects()
+    {
+        Settings.Enabled = true; Settings.AudioEnabled = false; Settings.OrbVisible = true;
+        foreach (bool ring in new[] { false, true })
+        foreach (bool edge in new[] { false, true })
+        {
+            Settings.GlowEnabled = ring; Settings.ScreenFlash = edge;
+            Complete();
+            if (glows.Count(g => !g.IsScreenFlash) != (ring ? 1 : 0) || glows.Count(g => g.IsScreenFlash) != (edge ? 1 : 0))
+                throw new InvalidOperationException("Completion effect switches are coupled.");
+            foreach (var g in glows.ToArray()) g.Close();
+        }
+        Settings.GlowEnabled = true; Settings.ScreenFlash = true; Complete();
+        Settings.GlowEnabled = false; ApplySettings();
+        if (glows.Count != 1 || !glows[0].IsScreenFlash) throw new InvalidOperationException("Turning off ring closed the screen effect.");
+        Settings.ScreenFlash = false; ApplySettings();
+        if (glows.Count != 0) throw new InvalidOperationException("Turning off screen effect did not close it.");
+        Settings.GlowEnabled = true; Settings.ScreenFlash = true; Complete();
+        Settings.ScreenFlash = false; ApplySettings();
+        if (glows.Count != 1 || glows[0].IsScreenFlash) throw new InvalidOperationException("Turning off screen effect closed the ring.");
+        foreach (var g in glows.ToArray()) g.Close();
+        Settings.OrbVisible = false; Settings.ScreenFlash = true; Complete();
+        if (glows.Count != 1 || !glows[0].IsScreenFlash) throw new InvalidOperationException("Hidden orb suppressed screen effect or emitted a ring.");
+        foreach (var g in glows.ToArray()) g.Close();
+        foreach (var size in new[] { new Size(1280, 720), new Size(720, 1280), new Size(1920, 1080) })
+        {
+            string path = Path.Combine(DataDirectory, $"edge-{size.Width}x{size.Height}.png");
+            GlowWindow.CaptureEdgePreview(path, size.Width, size.Height);
+            using var image = File.OpenRead(path);
+            var bitmap = System.Windows.Media.Imaging.BitmapDecoder.Create(image, System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+            byte[] pixel = new byte[4];
+            bitmap.CopyPixels(new Int32Rect((int)size.Width / 2, (int)size.Height / 2, 1, 1), pixel, 4, 0);
+            if (pixel[3] != 0) throw new InvalidOperationException("Screen effect tinted the center.");
+            int inset = (int)(Math.Min(size.Width, size.Height) * .14 * (1 - Math.Pow(1 - .38, 2)));
+            foreach (var point in new[] { new Point(inset, size.Height / 2), new Point(size.Width - inset - 1, size.Height / 2), new Point(size.Width / 2, inset), new Point(size.Width / 2, size.Height - inset - 1) })
+            {
+                bitmap.CopyPixels(new Int32Rect((int)point.X, (int)point.Y, 1, 1), pixel, 4, 0);
+                if (pixel[3] == 0 || pixel[1] <= pixel[2]) throw new InvalidOperationException("A screen edge has no green wave.");
+            }
+        }
+        Settings.OrbVisible = true; Settings.GlowEnabled = true; Settings.ScreenFlash = false; ApplySettings();
+    }
     async Task SmokeTest()
     {
         try
         {
             Settings.AudioEnabled = false; Settings.ScreenFlash = false; Settings.Sources.Clear(); ApplySettings();
             if (!File.Exists(AudioLibrary.Resolve(""))) throw new FileNotFoundException("Bundled default audio is missing.");
+            SmokeCompletionEffects();
             var localAudio = AudioLibrary.Import(AudioLibrary.DefaultPath);
             if (Path.IsPathRooted(localAudio) || AudioLibrary.Resolve(localAudio) != AudioLibrary.DefaultPath)
                 throw new InvalidOperationException("Audio paths must stay relative to the application directory.");
@@ -328,7 +374,7 @@ public partial class App : Application
             finally { probeStop.Cancel(); }
             File.WriteAllText(Path.Combine(DataDirectory, "runtime-modules.txt"), string.Join(Environment.NewLine,
                 Process.GetCurrentProcess().Modules.Cast<ProcessModule>().Select(m => m.FileName)));
-            File.WriteAllText(Path.Combine(DataDirectory, "smoke-result.txt"), "PASS: WPF panel, working/completion/paused rendering, settings persistence, close prompt default/cancel/minimize/restore, green icon resource, bundled default audio and relative path resolution, source dropdown selection, tray switch synchronization, staged relay IPC and repeated extraction. No Codex configuration touched.");
+            File.WriteAllText(Path.Combine(DataDirectory, "smoke-result.txt"), "PASS: WPF panel, working/completion/paused rendering, settings persistence, close prompt default/cancel/minimize/restore, green icon resource, independent completion effects and four-edge rendering at three screen sizes, bundled default audio and relative path resolution, source dropdown selection, tray switch synchronization, staged relay IPC and repeated extraction. No Codex configuration touched.");
             smokeExitPending = true;
             SmokeClose(true);
         }
